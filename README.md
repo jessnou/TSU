@@ -49,7 +49,7 @@ TSU/
 │   ├── spark.ipynb                     # Скрипт для работы с hive metastore и hdfs с помощью spark. Создание аналитических запросов, сохранение в parquet файлы
 │   ├── visualize.ipynb                 # Скрипт для визуализации итогов
 ├── .gitignore
-├── docker-compose.yml                  # Конфигурация сервисов Docker
+├── compose.yml                  # Конфигурация сервисов Docker
 ├── dockerile                           # Dockerfile для Jupiter
 └── README.md
 ```
