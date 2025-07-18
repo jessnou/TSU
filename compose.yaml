@@ -15,6 +15,7 @@ services:
       - "9000:9000"
     volumes:
       - hadoop_namenode:/hadoop/dfs/name
+      - ./hadoop-conf:/opt/hadoop/etc/hadoop:ro
 
   hadoop-datanode:
     image: bde2020/hadoop-datanode:latest
@@ -29,11 +30,27 @@ services:
       - hadoop-namenode
     volumes:
       - hadoop_datanode:/hadoop/dfs/data
+      - ./hadoop-conf:/opt/hadoop/etc/hadoop:ro
+
+  hive-lib-init:
+    image: apache/hive:4.0.1
+    container_name: hive-lib-init
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "cp -r /opt/hive/lib/* /shared-hive-lib && sleep 5"
+    volumes:
+      - hive_lib:/shared-hive-lib
 
   spark-master:
     image: bitnami/spark:latest
     environment:
       - SPARK_MODE=master
+      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
+      - HIVE_CONF_DIR=/opt/hive/conf
+    volumes:
+      - ./hadoop-conf:/opt/hadoop/etc/hadoop:ro
+      - ./hive-conf:/opt/hive/conf:ro
+      - hive_lib:/opt/hive/lib:ro
     ports:
       - "8080:8080"
       - "7077:7077"
@@ -47,6 +64,10 @@ services:
       - SPARK_MASTER_URL=spark://spark-master:7077
     depends_on:
       - spark-master
+    volumes:
+      - ./hadoop-conf:/opt/hadoop/etc/hadoop:ro
+      - ./hive-conf:/opt/hive/conf:ro
+      - hive_lib:/opt/hive/lib:ro
 
   jupyter:
     build: .
@@ -54,12 +75,43 @@ services:
       - "8888:8888"
       - "4040-4050:4040-4050"
     volumes:
+      - ./hadoop-conf:/opt/hadoop/etc/hadoop:ro
+      - ./hive-conf:/opt/hive/conf:ro
       - ./notebooks:/workspace
       - ./data:/data
+      - hive_lib:/opt/hive/lib:ro
     depends_on:
       - spark-master
       - hadoop-namenode
 
+  hive-metastore:
+    image: apache/hive:4.0.1
+    environment:
+      - SERVICE_NAME=metastore
+      - DB_DRIVER=postgres
+      - SERVICE_OPTS=-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore -Djavax.jdo.option.ConnectionUserName=hive -Djavax.jdo.option.ConnectionPassword=hive
+    ports:
+      - "9083:9083"
+    depends_on:
+      - hadoop-namenode
+      - postgres
+      - hive-lib-init
+    volumes:
+      - ./hive-conf:/opt/hive/conf:ro
+      - ./docker/postgresql-42.5.0.jar:/opt/hive/lib/postgresql-42.5.0.jar
+      - hive_lib:/opt/hive/lib:ro
+
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_DB=metastore
+      - POSTGRES_USER=hive
+      - POSTGRES_PASSWORD=hive
+    volumes:
+      - hive_postgres_data:/var/lib/postgresql/data
+
 volumes:
   hadoop_namenode:
   hadoop_datanode:
+  hive_postgres_data:
+  hive_lib: {}
